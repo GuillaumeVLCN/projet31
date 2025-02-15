@@ -39,44 +39,37 @@ function Traiter_Fichier {
     $resultatAnalyse = Start-Process -FilePath "clamscan.exe" -ArgumentList "--quiet --infected --remove --log=$logFile $cheminNouveauDossier" -NoNewWindow -PassThru -Wait
     if ($resultatAnalyse.ExitCode -eq 0) {
         
-        $cheminDossierAnalyse = Join-Path $dossier_analyse_clam $nomUtilisateur
-        if (-not (Test-Path $cheminDossierAnalyse)) {
-            New-Item -Path $cheminDossierAnalyse -ItemType Directory
+        #$cheminDossierAnalyse = Join-Path $dossier_analyse_clam $nomUtilisateur
+        $clamWinPath = "C:\Program Files\ClamWin\bin\ClamWin.exe"
+        $clamWinLog = "C:\Users\$env:USERNAME\AppData\Roaming\.clamwin\log\ClamScanLog.txt"
+        Clear-Content -Path $clamWinLog -ErrorAction SilentlyContinue
+        Start-Process -FilePath $clamWinPath -ArgumentList "--mode=scanner --path=$cheminNouveauDossier" -NoNewWindow -PassThru -Wait
+
+        Start-Sleep -Seconds 5  
+        $logContent = Get-Content -Path $clamWinLog -Raw
+        if ($logContent -match "Infected files: 0") {
+            Write-Host " Aucun virus détecté."
+            Ecrire_Dans_Log $fichier.Name "sain" "fichier_transfere"
         }
-        Move-Item -Path $cheminNouveauDossier -Destination (Join-Path $cheminDossierAnalyse "$($fichier.BaseName)_$dateHeureString")
-
-       
-        $cheminDossierTransfert = Join-Path $dossier_mise_a_dispo $nomUtilisateur
-        if (-not (Test-Path $cheminDossierTransfert)) {
-            New-Item -Path $cheminDossierTransfert -ItemType Directory
+        else {
+            Write-Host " Virus détecté, suppression du fichier."
+            Ecrire_Dans_Log $fichier.Name "VIRUS" "fichier_supprime"
+            Remove-Item -Path $cheminNouveauDossier -Recurse -Force
         }
-        Move-Item -Path (Join-Path $cheminDossierAnalyse "$($fichier.BaseName)_$dateHeureString") -Destination (Join-Path $cheminDossierTransfert "$($fichier.BaseName)_$dateHeureString")
-        Ecrire_Dans_Log $fichier.Name "fichier sain" "fichier_transféré"
 
-        
-        Notifier -titre "Transfert réussi" -message "Le fichier $($fichier.Name) a été transféré vers $cheminDossierTransfert"
-    }
-    else {
-       
-        Ecrire_Dans_Log $fichier.Name "VIRUS détecté" "fichier_supprimé"
-        Remove-Item -Path $cheminNouveauDossier -Recurse -Force
-
-      
-        Notifier -titre "Analyse échouée" -message "Le fichier $($fichier.Name) est infecté et a été supprimé."
-    }
 
     
-    Notifier -titre "Analyse terminée" -message "Analyse terminée pour le fichier $($fichier.Name)"
-}
-
-function Surveiller_Fichiers {
-    while ($true) {
-        Get-ChildItem -Path $dossier_reception -Directory | ForEach-Object {
-            $dossierUtilisateur = $_
-            Get-ChildItem -Path $dossierUtilisateur.FullName | ForEach-Object { Traiter_Fichier $_ $dossierUtilisateur }
-        }
-        Start-Sleep -Seconds 10
+        Notifier -titre "Analyse terminée" -message "Analyse terminée pour le fichier $($fichier.Name)"
     }
-}
 
-Surveiller_Fichiers
+    function Surveiller_Fichiers {
+        while ($true) {
+            Get-ChildItem -Path $dossier_reception -Directory | ForEach-Object {
+                $dossierUtilisateur = $_
+                Get-ChildItem -Path $dossierUtilisateur.FullName | ForEach-Object { Traiter_Fichier $_ $dossierUtilisateur }
+            }
+            Start-Sleep -Seconds 10
+        }
+    }
+
+    Surveiller_Fichiers

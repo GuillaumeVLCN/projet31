@@ -36,8 +36,7 @@ function Traiter_Fichier {
     $nomUtilisateur | Out-File -FilePath (Join-Path $cheminNouveauDossier "utilisateur.txt")
 
     Move-Item -Path $fichier.FullName -Destination $cheminNouveauDossier
-    $resultatAnalyse = Start-Process -FilePath "C:\Program Files\Windows Defender\MpCmdRun.exe" -ArgumentList "-Scan -ScanType 3 -File $cheminNouveauDossier" -Wait -PassThru
-
+    $resultatAnalyse = Start-Process -FilePath "clamscan.exe" -ArgumentList "--quiet --infected --remove --log=$logFile $cheminNouveauDossier" -NoNewWindow -PassThru -Wait
     if ($resultatAnalyse.ExitCode -eq 0) {
         
         $cheminDossierAnalyse = Join-Path $dossier_analyse_clam $nomUtilisateur
@@ -52,14 +51,14 @@ function Traiter_Fichier {
             New-Item -Path $cheminDossierTransfert -ItemType Directory
         }
         Move-Item -Path (Join-Path $cheminDossierAnalyse "$($fichier.BaseName)_$dateHeureString") -Destination (Join-Path $cheminDossierTransfert "$($fichier.BaseName)_$dateHeureString")
-        Ecrire_Dans_Log $fichier.Name "sain" "fichier_transfere"
+        Ecrire_Dans_Log $fichier.Name "fichier sain" "fichier_transféré"
 
         
         Notifier -titre "Transfert réussi" -message "Le fichier $($fichier.Name) a été transféré vers $cheminDossierTransfert"
     }
     else {
        
-        Ecrire_Dans_Log $fichier.Name "VIRUS" "fichier_supprime"
+        Ecrire_Dans_Log $fichier.Name "VIRUS détecté" "fichier_supprimé"
         Remove-Item -Path $cheminNouveauDossier -Recurse -Force
 
       
